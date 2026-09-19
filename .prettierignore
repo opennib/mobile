@@ -1,0 +1,10 @@
+node_modules/
+ios/
+android/
+.expo/
+qvac/
+bare/worker.bundle.cjs
+package-lock.json
+android-ime/
+ios-keyboard/
+ios-shared/

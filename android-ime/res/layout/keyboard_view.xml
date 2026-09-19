@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/opennib_kbd_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/opennib_kbd_bg"
+    android:paddingLeft="@dimen/opennib_kbd_padding"
+    android:paddingRight="@dimen/opennib_kbd_padding"
+    android:paddingTop="@dimen/opennib_kbd_padding"
+    android:paddingBottom="@dimen/opennib_kbd_padding">
+
+  <TextView
+      android:id="@+id/opennib_status"
+      android:layout_width="match_parent"
+      android:layout_height="@dimen/opennib_kbd_status_height"
+      android:text="opennib"
+      android:textSize="11sp"
+      android:textColor="@color/opennib_status_text"
+      android:gravity="center" />
+
+  <LinearLayout
+      android:id="@+id/opennib_kbd_rows"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical" />
+</LinearLayout>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="opennib_kbd_bg">#D4DDEC</color>
+  <color name="opennib_key_bg">#FFFFFF</color>
+  <color name="opennib_key_bg_pressed">#BBC2D0</color>
+  <color name="opennib_key_bg_special">#C9D2E0</color>
+  <color name="opennib_key_text">#17181C</color>
+  <color name="opennib_status_text">#565A63</color>
+  <color name="opennib_mic_bg">#D64A2C</color>
+  <color name="opennib_mic_bg_recording">#B23A20</color>
+  <color name="opennib_mic_text">#FFFFFF</color>
+</resources>

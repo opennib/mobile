@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <dimen name="opennib_kbd_padding">4dp</dimen>
+  <dimen name="opennib_kbd_row_gap">6dp</dimen>
+  <dimen name="opennib_kbd_key_gap">4dp</dimen>
+  <dimen name="opennib_kbd_row_height">44dp</dimen>
+  <dimen name="opennib_kbd_status_height">22dp</dimen>
+  <dimen name="opennib_key_corner">6dp</dimen>
+  <dimen name="opennib_key_text_size">18sp</dimen>
+  <dimen name="opennib_key_text_size_special">13sp</dimen>
+</resources>

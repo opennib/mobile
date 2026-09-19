@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "opennib",
+    "slug": "opennib",
+    "scheme": "opennib",
+    "version": "0.3.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.opennib.mobile",
+      "deploymentTarget": "17.0",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "opennib records short audio clips while you hold the dictation button, transcribes them on-device with Whisper, and discards the audio.",
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "com.opennib.mobile",
+      "edgeToEdgeEnabled": true,
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          },
+          "android": {
+            "minSdkVersion": 29
+          }
+        }
+      ],
+      "./plugins/with-qvac-sdk.cjs",
+      "./plugins/with-app-group.cjs",
+      "./plugins/with-keyboard-extension.cjs",
+      "./plugins/with-shared-group-module.cjs",
+      "./plugins/with-android-ime.cjs",
+      "./plugins/with-bare-addon-manifest.cjs"
+    ]
+  }
+}

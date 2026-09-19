@@ -1,0 +1,79 @@
+{
+  "name": "@opennib/mobile",
+  "version": "0.0.1",
+  "description": "opennib for iOS and Android: free, open-source, fully on-device dictation. Expo + React Native app, iOS keyboard extension, Android IME, Bare worker for the AI engines and Hypercore storage.",
+  "license": "MIT",
+  "private": true,
+  "homepage": "https://github.com/opennib/mobile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opennib/mobile.git"
+  },
+  "bugs": {
+    "url": "https://github.com/opennib/mobile/issues"
+  },
+  "engines": {
+    "node": ">=22.17"
+  },
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "bundle:bare": "node scripts/bundle-bare.mjs",
+    "prebuild": "npm run bundle:bare && expo prebuild",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@opennib/core": "^0.1.2",
+    "@qvac/sdk": "0.16.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "bare-abort-controller": "^1.1.1",
+    "bare-buffer": "^3.6.0",
+    "bare-crypto": "^1.13.4",
+    "bare-dns": "^2.1.4",
+    "bare-fetch": "^3.0.0",
+    "bare-fs": "^4.7.1",
+    "bare-http1": "^4.5.6",
+    "bare-https": "^3.0.0",
+    "bare-link": "^3.2.1",
+    "bare-net": "^2.3.1",
+    "bare-os": "3.9.0",
+    "bare-path": "^3.0.0",
+    "bare-process": "^4.4.1",
+    "bare-rpc": "^1.3.0",
+    "bare-runtime": "^1.28.4",
+    "bare-stream": "^2.13.1",
+    "bare-subprocess": "^6.0.0",
+    "bare-zlib": "^1.3.3",
+    "compact-encoding": "^3.0.0",
+    "events": "^3.3.0",
+    "expo": "~54.0.33",
+    "expo-av": "^16.0.8",
+    "expo-build-properties": "^55.0.13",
+    "expo-clipboard": "^55.0.13",
+    "expo-device": "^8.0.0",
+    "expo-file-system": "~19.0.18",
+    "expo-status-bar": "~3.0.9",
+    "hypercore": "^11.30.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-bare-kit": "^0.14.5",
+    "react-native-svg": "15.12.1"
+  },
+  "devDependencies": {
+    "@qvac/cli": "^0.2.4",
+    "@types/react": "~19.1.0",
+    "bare-pack": "2.0.1",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "tar": "^7.5.22",
+    "shell-quote": "^1.10.0",
+    "bare-pack": "2.0.1",
+    "bare-module-lexer": "1.4.7"
+  }
+}

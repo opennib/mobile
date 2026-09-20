@@ -64,7 +64,6 @@
     "react-native-svg": "15.12.1"
   },
   "devDependencies": {
-    "@qvac/cli": "^0.2.4",
     "@types/react": "~19.1.0",
     "bare-pack": "2.0.1",
     "prettier": "^3.4.2",

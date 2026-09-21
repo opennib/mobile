@@ -6,8 +6,6 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-black" height="28"></a>
 </p>
 
-**Website:** [opennib.com](https://opennib.com) · **Privacy policy:** [opennib.com/privacy](https://opennib.com/privacy)
-
 # opennib mobile
 
 Free, open-source, fully on-device dictation for iPhone and Android. Hold a

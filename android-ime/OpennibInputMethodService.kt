@@ -61,6 +61,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
 
   override fun onCreateInputView(): View {
     val c = OpennibKeyboardController(this, this)
+    c.levelProvider = { capture?.level ?: 0f }
     controller = c
     val view = c.createView()
     c.setStatus(LABEL_IDLE)
@@ -88,6 +89,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
     coldStart = false
     controller?.setStatus(LABEL_IDLE)
     controller?.setRecordingTint(false)
+    controller?.showKeys()
   }
 
   // -------- KeyEventListener --------
@@ -145,6 +147,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
       coldStart = false
       controller?.setStatus("Recording…")
       controller?.setRecordingTint(true)
+      controller?.showRecording()
       OpennibKeyboardBridge.emit(applicationContext, "opennib:recordStart", null)
     } catch (e: Throwable) {
       Log.w(TAG, "capture.start failed", e)
@@ -165,6 +168,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
     if (!holding) return
     holding = false
     controller?.setStatus("Transcribing…")
+    controller?.showTranscribing()
     val wavPath = try {
       capture?.stopAndWriteWav()
     } catch (e: Throwable) {
@@ -174,6 +178,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
     if (wavPath == null) {
       Log.d(TAG, "onMicUp: no audio captured")
       controller?.setStatus(LABEL_IDLE)
+      controller?.showKeys()
       return
     }
     val payload = Arguments.createMap().apply { putString("wavPath", wavPath) }
@@ -183,6 +188,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
       armTranscribeTimeout(wavPath)
     } else {
       controller?.setStatus(LABEL_IDLE)
+      controller?.showKeys()
     }
   }
 
@@ -199,6 +205,7 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
       Log.w(TAG, "transcribe timeout — JS never replied, resetting")
       transcribeTimeout = null
       controller?.setStatus(LABEL_IDLE)
+      controller?.showKeys()
       try { java.io.File(wavPath).delete() } catch (_: Throwable) {}
     }
     transcribeTimeout = r
@@ -231,8 +238,21 @@ class OpennibInputMethodService : InputMethodService(), KeyEventListener {
       cancelTranscribeTimeout()
       val ic = currentInputConnection
       Log.d(TAG, "deliverTranscript len=${text.length} ic=${ic != null}")
-      if (text.isNotEmpty()) ic?.commitText(text, 1)
-      controller?.setStatus(LABEL_IDLE)
+      if (text.isNotEmpty() && ic != null) {
+        // Some chat apps (custom compose views) drop a bare commitText that
+        // arrives seconds after the last key event. Wrap it in a batch edit
+        // and clear any composing region first, the way stock keyboards do,
+        // and report whether the editor accepted it.
+        ic.beginBatchEdit()
+        ic.finishComposingText()
+        val ok = ic.commitText(text, 1)
+        ic.endBatchEdit()
+        Log.d(TAG, "commitText accepted=$ok")
+        controller?.setStatus(if (ok) "Inserted ✓" else "Couldn't insert here")
+      } else {
+        controller?.setStatus(if (text.isEmpty()) "No speech detected" else LABEL_IDLE)
+      }
+      controller?.showKeys()
     }
   }
 

@@ -29,7 +29,7 @@ through `react-native-bare-kit`, runs everything heavy:
 ┌──────────────────────────────────────────────┐
 │ React Native (Hermes)                        │
 │  App.tsx · screens · hooks · native modules  │
-│  records 16 kHz mono WAV with expo-av        │
+│  records 16 kHz mono audio with expo-av      │
 └───────────────┬──────────────────────────────┘
                 │ HRPC over the worklet IPC stream
                 │ (typed contract from @opennib/core/hrpc)
@@ -42,10 +42,13 @@ through `react-native-bare-kit`, runs everything heavy:
 └──────────────────────────────────────────────┘
 ```
 
-One dictation is one `dictate` call: the app records a WAV and the worker
+One dictation is one `dictate` call: the app records a clip and the worker
 runs core's `DictationPipeline` on it, the same orchestrator the desktop app
 uses, so the speech gate, cleanup, dictionary and history behave identically
-on both platforms. Hermes never imports `@qvac/sdk` or Hypercore. Whisper
+on both platforms. iOS and the Android IME record real WAVs; expo-av on
+Android writes AAC in a 3GP container despite the `.wav` name, so the worker
+decodes non-RIFF input through the SDK's ffmpeg addon before gating it.
+Hermes never imports `@qvac/sdk` or Hypercore. Whisper
 runs inside the worker through the QVAC SDK's Bare-direct mode; the worker
 bundle is built by `bare-pack` for `ios-arm64`, `ios-arm64-simulator` and
 `android-arm64` and shipped as a base64 string Metro can `require()`.

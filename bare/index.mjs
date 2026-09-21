@@ -24,6 +24,7 @@ import {
   buildWhisperModelConfig,
   cleanupText,
   decodeWav,
+  encodeWavPcm16,
   log,
   ModelLoadError,
 } from "@opennib/core"
@@ -44,6 +45,30 @@ const storageFs = {
 }
 
 const { IPC } = BareKit
+
+// Under react-native-bare-kit, Bare's stdout/stderr are forwarded to the
+// platform log (logcat tag "BareKit" on Android). console.* inside the
+// worklet is NOT, so core's `log` and the SDK's server logger vanished on
+// device. Route console to stderr so worker + SDK diagnostics are visible.
+{
+  const write =
+    (level) =>
+    (...args) => {
+      try {
+        const line = args
+          .map((a) => (typeof a === "string" ? a : JSON.stringify(a, null, 0)))
+          .join(" ")
+        Bare.stderr?.write?.(`[worker:${level}] ${line}\n`)
+      } catch {
+        // Logging must never throw inside a handler.
+      }
+    }
+  console.log = write("info")
+  console.info = write("info")
+  console.warn = write("warn")
+  console.error = write("error")
+  console.debug = write("debug")
+}
 
 // State constructed by INIT. Every non-INIT storage handler checks these are
 // set and fails with a typed error otherwise, so a misordered client gets a
@@ -70,24 +95,80 @@ let cleaner = null
 // the per-call state: input path + settings in, transcript or error out.
 const cycle = { wavPath: null, model: "tiny", language: "auto", text: null, error: null }
 
+const RIFF_MAGIC = "RIFF"
+
+/**
+ * Decode whatever the host recorded into a 16 kHz mono float frame. iOS
+ * (expo-av LINEARPCM) and the Android IME (AudioRecord) write real WAVs, which
+ * core's parser handles. expo-av on Android ignores the ".wav" extension and
+ * writes a 3GP/AAC container, so anything that isn't RIFF goes through the
+ * SDK's ffmpeg decoder — the same addon whisper itself uses on that path.
+ */
+async function decodeRecording(path) {
+  const bytes = await fs.promises.readFile(path)
+  if (bytes.length >= 4 && bytes.toString("latin1", 0, 4) === RIFF_MAGIC) {
+    return decodeWav(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength))
+  }
+  const { FFmpegDecoder } = await import("@qvac/decoder-audio")
+  const decoder = new FFmpegDecoder({ config: { audioFormat: "f32le" } })
+  await decoder.load()
+  // The decoder drops the first 300 ms of every AAC stream to hide encoder
+  // priming. That's right for downloaded music and wrong for a push-to-talk
+  // capture, where the user may already be speaking at t=0 (it clipped
+  // "Testing 1 2 3" to "the packaged worker is alive" in tests). Keep every
+  // sample; the priming a recorder emits is a few ms of silence at most.
+  decoder.totalSkipSamples = 0
+  Object.defineProperty(decoder, "totalSkipSamples", {
+    get: () => 0,
+    set: () => {},
+    configurable: true,
+  })
+  try {
+    const chunks = []
+    await new Promise((resolve, reject) => {
+      decoder
+        .run(fs.createReadStream(path))
+        .onUpdate((out) => chunks.push(Buffer.from(new Uint8Array(out.outputArray))))
+        .onFinish(resolve)
+        .onError(reject)
+    })
+    const pcm = Buffer.concat(chunks)
+    // ffmpeg emits at the decoder's default: 16 kHz mono f32le for this SDK
+    // build (what whisper consumes). Copy so the Float32Array is aligned.
+    const aligned = new Uint8Array(pcm.length)
+    aligned.set(pcm)
+    const samples = new Float32Array(aligned.buffer, 0, Math.floor(pcm.length / 4))
+    return { samples, sampleRate: 16000, durationMs: Math.round((samples.length / 16000) * 1000) }
+  } finally {
+    await decoder.unload()
+  }
+}
+
 const recorder = {
   async start() {},
   async stop() {
     if (cycle.wavPath === null) throw new Error("dictate: no recording to stop")
-    const bytes = await fs.promises.readFile(cycle.wavPath)
-    return decodeWav(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength))
+    return decodeRecording(cycle.wavPath)
   },
 }
 
 const transcriber = {
-  // The pipeline hands us the decoded frame (it already ran the speech gate
-  // on it); the SDK wants a file it can ffmpeg-decode, so we pass the WAV the
-  // host recorded instead of re-encoding the frame.
-  async transcribe(_frame, modelId, language) {
+  // Transcribe the frame the pipeline gated, not the host's file: the SDK
+  // would re-decode a 3GP itself and drop its first 300 ms (see
+  // decodeRecording). Whisper gets a plain PCM16 WAV written next to the
+  // recording, so the gate and the model see identical audio.
+  async transcribe(frame, modelId, language) {
     const id = await ensureWhisperLoaded(modelId, language, (p) => pushModelProgress(modelId, p))
     const { transcribe } = await import("@qvac/sdk")
-    const result = await transcribe({ modelId: id, audioChunk: cycle.wavPath })
-    return typeof result === "string" ? result : (result?.text ?? "")
+    const pcmPath = `${cycle.wavPath}.pcm16.wav`
+    await fs.promises.writeFile(pcmPath, encodeWavPcm16(frame))
+    try {
+      const result = await transcribe({ modelId: id, audioChunk: pcmPath })
+      return typeof result === "string" ? result : (result?.text ?? "")
+    } finally {
+      // Scratch file; a failed cleanup must not fail the transcription.
+      await fs.promises.rm(pcmPath, { force: true }).catch(() => {})
+    }
   },
 }
 
@@ -209,6 +290,30 @@ async function sdkModelFor(id) {
 }
 
 /**
+ * Loading a registry constant makes the SDK re-verify the cached file's
+ * SHA-256 on EVERY load — a 77 MB stream hash in JavaScript, which takes
+ * minutes on a mid-range phone (and ran silently on every app reload: the
+ * "tap does nothing for five minutes" report). `getModelInfo` only stats the
+ * cache and returns the file's absolute path, and `loadModel` with a plain
+ * path skips download and checksum entirely. The hash is still verified once,
+ * on the initial download. First-run downloads keep going through the
+ * registry constant so progress events still flow.
+ */
+async function resolveModelSrc(registrySrc) {
+  const { getModelInfo } = await import("@qvac/sdk")
+  const t0 = Date.now()
+  const info = await getModelInfo(registrySrc)
+  const path = info?.isCached
+    ? (info.primaryPath ?? info.path ?? info.cacheFiles?.[0]?.path)
+    : undefined
+  log.info("whisper model source resolved", {
+    cached: Boolean(path),
+    ms: Date.now() - t0,
+  })
+  return typeof path === "string" && path.length > 0 ? path : registrySrc
+}
+
+/**
  * Ensure a whisper model matching `(model, language)` is loaded, reloading
  * (and unloading the previous one) when the key changes. `onProgress`, when
  * given, receives 0–100 percentages during a download/load.
@@ -229,12 +334,13 @@ async function ensureWhisperLoaded(model, language, onProgress) {
     await unloadModel({ modelId: previous }).catch(() => {})
   }
 
-  const modelSrc = await sdkModelFor(model)
+  const modelSrc = await resolveModelSrc(await sdkModelFor(model))
   // The whisper config invariants (omit `detect_language`; `audio_format` is
   // "f32le" because the SDK ffmpeg-decodes our WAV before whisper sees it)
   // live in core's `buildWhisperModelConfig`, shared with desktop so the two
   // load sites can't drift. GPU + flash-attn stay off on mobile — mid-range
   // devices are more stable on the CPU path.
+  const t0 = Date.now()
   const id = await loadModel({
     modelSrc,
     modelType: "whisper",
@@ -253,6 +359,7 @@ async function ensureWhisperLoaded(model, language, onProgress) {
   })
   whisperModelId = id
   whisperKey = key
+  log.info("whisper model loaded", { model, language, ms: Date.now() - t0 })
   return id
 }
 

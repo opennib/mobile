@@ -419,8 +419,14 @@ export function HomeScreen({ onOpenSettings, onOpenHistory, onOpenDictionary }: 
             ? "transcribing"
             : "idle"
 
+  // Disabled (muted glyph, no press) until whisper is actually loaded: the
+  // label already says "Loading model…", but an ink-colored button read as
+  // "tap me" and a tap did nothing for the whole load.
   const micButtonState =
-    setupBanner === "mic-denied" || setupBanner === "mic-undetermined"
+    setupBanner === "mic-denied" ||
+    setupBanner === "mic-undetermined" ||
+    micPhase === "loading" ||
+    micPhase === "error"
       ? "disabled"
       : micPhase === "recording"
         ? "recording"
@@ -562,7 +568,11 @@ export function HomeScreen({ onOpenSettings, onOpenHistory, onOpenDictionary }: 
               if (lockedFromKeyboard) return
               void onPressOut()
             }}
-            style={micPhase === "idle" || micPhase === "error" ? undefined : styles.micButtonHidden}
+            style={
+              micPhase === "idle" || micPhase === "error" || micPhase === "loading"
+                ? undefined
+                : styles.micButtonHidden
+            }
           />
           {micPhase === "recording" && (
             <View style={styles.waveOverlay} pointerEvents="none">

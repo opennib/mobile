@@ -10,6 +10,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -42,6 +43,14 @@ class OpennibKeyboardController(
 
   private var statusLabel: TextView? = null
   private var rowsContainer: LinearLayout? = null
+  private var recordingPanel: LinearLayout? = null
+  private var waveView: OpennibWaveView? = null
+  private var listeningLabel: TextView? = null
+  private var timerLabel: TextView? = null
+  private var recordingStartedAt: Long = 0L
+  private var panelTicker: Runnable? = null
+  /** Supplies the live mic level (0..1) while recording; set by the service. */
+  var levelProvider: (() -> Float)? = null
   private var micKey: TextView? = null
   private var shiftKey: TextView? = null
   private var pageKey: TextView? = null
@@ -59,6 +68,10 @@ class OpennibKeyboardController(
     ) as ViewGroup
     statusLabel = view.findViewById(rid("opennib_status", "id"))
     rowsContainer = view.findViewById(rid("opennib_kbd_rows", "id"))
+    recordingPanel = buildRecordingPanel().also {
+      it.visibility = View.GONE
+      view.addView(it)
+    }
     rebuild()
     return view
   }
@@ -73,6 +86,102 @@ class OpennibKeyboardController(
 
   fun setRecordingTint(recording: Boolean) {
     micKey?.isPressed = recording
+  }
+
+  // ── Recording panel (design A-K-2): wave + "● Listening…" + timer ──
+  // Replaces the key rows while the user holds the mic; the same 290 dp the
+  // design gives it, so the keyboard doesn't jump. The mic key itself stays
+  // out of the tree — the hold gesture is already in flight on the row's key,
+  // and Android keeps delivering its touch events to the pressed view even
+  // after we hide the row.
+
+  private fun buildRecordingPanel(): LinearLayout {
+    val panel = LinearLayout(context).apply {
+      orientation = LinearLayout.VERTICAL
+      gravity = Gravity.CENTER
+      layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(244))
+    }
+    val wave = OpennibWaveView(context)
+    panel.addView(wave, LinearLayout.LayoutParams(dp(300), dp(88)))
+    waveView = wave
+
+    val row = LinearLayout(context).apply {
+      orientation = LinearLayout.HORIZONTAL
+      gravity = Gravity.CENTER_VERTICAL
+    }
+    val dot = View(context).apply {
+      setBackgroundResource(rid("key_bg_mic", "drawable"))
+      alpha = 1f
+      animate().alpha(0.25f).setDuration(1400).setInterpolator(android.view.animation.DecelerateInterpolator())
+        .withEndAction(object : Runnable {
+          override fun run() {
+            if (recordingPanel?.visibility == View.VISIBLE) {
+              alpha = 1f
+              animate().alpha(0.25f).setDuration(1400).withEndAction(this).start()
+            }
+          }
+        }).start()
+    }
+    row.addView(dot, LinearLayout.LayoutParams(dp(8), dp(8)).apply { rightMargin = dp(8) })
+    val label = TextView(context).apply {
+      text = "Listening…"
+      setTextColor(0xFF17181C.toInt())
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+      typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+    row.addView(label)
+    listeningLabel = label
+    panel.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(22) })
+
+    val timer = TextView(context).apply {
+      text = "0:00"
+      setTextColor(0xFF8B909A.toInt())
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
+      typeface = android.graphics.Typeface.MONOSPACE
+      letterSpacing = 0.06f
+    }
+    panel.addView(timer, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+    timerLabel = timer
+    return panel
+  }
+
+  /** Show the recording panel in place of the key rows and start the wave. */
+  fun showRecording() {
+    rowsContainer?.visibility = View.GONE
+    recordingPanel?.visibility = View.VISIBLE
+    listeningLabel?.text = "Listening…"
+    timerLabel?.text = "0:00"
+    recordingStartedAt = System.currentTimeMillis()
+    waveView?.reset()
+    waveView?.start()
+    panelTicker?.let { mainHandler.removeCallbacks(it) }
+    val tick = object : Runnable {
+      override fun run() {
+        waveView?.targetLevel = levelProvider?.invoke() ?: 0f
+        val secs = ((System.currentTimeMillis() - recordingStartedAt) / 1000).toInt()
+        timerLabel?.text = String.format("%d:%02d", secs / 60, secs % 60)
+        mainHandler.postDelayed(this, 50)
+      }
+    }
+    panelTicker = tick
+    mainHandler.post(tick)
+  }
+
+  /** Freeze the wave and relabel while whisper runs. */
+  fun showTranscribing() {
+    panelTicker?.let { mainHandler.removeCallbacks(it) }
+    panelTicker = null
+    listeningLabel?.text = "Transcribing…"
+    waveView?.freeze()
+  }
+
+  /** Back to the key rows. */
+  fun showKeys() {
+    panelTicker?.let { mainHandler.removeCallbacks(it) }
+    panelTicker = null
+    waveView?.reset()
+    recordingPanel?.visibility = View.GONE
+    rowsContainer?.visibility = View.VISIBLE
   }
 
   private fun rebuild() {

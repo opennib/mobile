@@ -28,6 +28,16 @@ class OpennibAudioCapture(private val cacheDir: File) {
   @Volatile private var stopRequested = false
   private var samples = ByteArrayOutputStream()
 
+  /**
+   * Mic level of the most recent buffer, 0..1 (RMS of 16-bit samples against
+   * a -30 dBFS ceiling so normal speech reaches full scale). Drives the IME's
+   * live waveform; read from the UI thread, written by the capture thread.
+   */
+  @Volatile var level: Float = 0f
+    private set
+  private var gateOpen = false
+  private var gateHold = 0
+
   /** Throws if mic permission is missing or the device cannot open AudioRecord. */
   fun start() {
     val bufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
@@ -41,6 +51,9 @@ class OpennibAudioCapture(private val cacheDir: File) {
     }
     samples = ByteArrayOutputStream()
     stopRequested = false
+    gateOpen = false
+    gateHold = 0
+    level = 0f
     rec.startRecording()
     recorder = rec
     val buf = ByteArray(bufferSize)
@@ -50,6 +63,7 @@ class OpennibAudioCapture(private val cacheDir: File) {
           val n = rec.read(buf, 0, buf.size)
           if (n > 0) {
             synchronized(samples) { samples.write(buf, 0, n) }
+            level = rmsLevel(buf, n)
           } else if (n < 0) {
             Log.w(TAG, "AudioRecord.read returned $n; ending capture")
             break
@@ -68,6 +82,7 @@ class OpennibAudioCapture(private val cacheDir: File) {
    */
   fun stopAndWriteWav(): String? {
     stopRequested = true
+    level = 0f
     val t = thread
     thread = null
     if (t != null) {
@@ -92,6 +107,35 @@ class OpennibAudioCapture(private val cacheDir: File) {
     val file = File(cacheDir, "opennib-${System.currentTimeMillis()}.wav")
     writeWav(file, pcm)
     return file.absolutePath
+  }
+
+  /**
+   * Mic level with the same hysteresis noise gate the desktop recorder uses:
+   * opens at 0.006 RMS, closes below 0.003 after a short hold. Below the gate
+   * the level is exactly 0, so the waveform lies flat between words instead
+   * of twitching on room noise. Above it, -45..-20 dBFS maps to 0..1.
+   */
+  private fun rmsLevel(buf: ByteArray, n: Int): Float {
+    var sum = 0.0
+    var i = 0
+    val count = n / 2
+    while (i + 1 < n) {
+      val s = ((buf[i + 1].toInt() shl 8) or (buf[i].toInt() and 0xFF)).toShort().toInt() / 32768.0
+      sum += s * s
+      i += 2
+    }
+    if (count == 0) return 0f
+    val rms = Math.sqrt(sum / count)
+    if (gateOpen) {
+      if (rms < GATE_CLOSE_RMS) {
+        if (++gateHold > GATE_HOLD_BUFFERS) { gateOpen = false; gateHold = 0 }
+      } else gateHold = 0
+    } else if (rms >= GATE_OPEN_RMS) {
+      gateOpen = true; gateHold = 0
+    }
+    if (!gateOpen) return 0f
+    val db = 20 * Math.log10(rms.coerceAtLeast(1e-6))
+    return (((db + 45.0) / 25.0).coerceIn(0.0, 1.0)).toFloat()
   }
 
   private fun writeWav(file: File, pcm: ByteArray) {
@@ -122,6 +166,9 @@ class OpennibAudioCapture(private val cacheDir: File) {
   companion object {
     private const val TAG = "OpennibCapture"
     private const val SAMPLE_RATE = 16_000
+    private const val GATE_OPEN_RMS = 0.006
+    private const val GATE_CLOSE_RMS = 0.003
+    private const val GATE_HOLD_BUFFERS = 4
     private const val CHANNELS = 1
     private const val BITS_PER_SAMPLE = 16
     private const val CHANNEL = AudioFormat.CHANNEL_IN_MONO

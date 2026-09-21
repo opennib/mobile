@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 
+import { log } from "@opennib/core"
+
 import { bareWorker } from "../native/bare-worker"
 
 export type TranscriberStatus = "idle" | "loading" | "ready" | "transcribing" | "error"
@@ -58,8 +60,11 @@ export function useTranscriber({
         setStatus("loading")
         setProgress(null)
         setError(null)
+        const startedAt = Date.now()
+        log.info("whisper model load requested", { model: whisperModelId, language })
         await bareWorker.modelLoad(whisperModelId, language)
         if (cancelled) return
+        log.info("whisper model ready", { model: whisperModelId, ms: Date.now() - startedAt })
         readyRef.current = true
         setStatus("ready")
       } catch (e) {

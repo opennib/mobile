@@ -4,7 +4,7 @@
   "description": "opennib for iOS and Android: free, open-source, fully on-device dictation. Expo + React Native app, iOS keyboard extension, Android IME, Bare worker for the AI engines and Hypercore storage.",
   "license": "MIT",
   "private": true,
-  "homepage": "https://github.com/opennib/mobile",
+  "homepage": "https://opennib.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/opennib/mobile.git"

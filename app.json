@@ -3,7 +3,8 @@
     "name": "opennib",
     "slug": "opennib",
     "scheme": "opennib",
-    "version": "0.3.0",
+    "version": "0.0.1",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -18,12 +19,23 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "opennib records short audio clips while you hold the dictation button, transcribes them on-device with Whisper, and discards the audio.",
         "UIBackgroundModes": ["audio"]
-      }
+      },
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.opennib.mobile",
       "edgeToEdgeEnabled": true,
-      "permissions": ["RECORD_AUDIO"]
+      "permissions": ["RECORD_AUDIO"],
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#17181c"
+      },
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       [
@@ -42,7 +54,8 @@
       "./plugins/with-keyboard-extension.cjs",
       "./plugins/with-shared-group-module.cjs",
       "./plugins/with-android-ime.cjs",
-      "./plugins/with-bare-addon-manifest.cjs"
+      "./plugins/with-bare-addon-manifest.cjs",
+      "./plugins/with-release-config.cjs"
     ]
   }
 }

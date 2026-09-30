@@ -107,6 +107,39 @@ cannot read the shared transcript or signal the host app.
 | `npm run typecheck`   | `tsc --noEmit`                                         |
 | `npm run format`      | Prettier                                               |
 
+## Release builds
+
+Android release builds are signed with the Play **upload key**, read from
+Gradle properties so the keystore never enters the repo. Put these in
+`~/.gradle/gradle.properties` (the plugin `plugins/with-release-config.cjs`
+wires them into the generated `build.gradle`; without them release builds
+fall back to the debug key and cannot be uploaded):
+
+```
+OPENNIB_UPLOAD_STORE_FILE=/absolute/path/opennib-upload.keystore
+OPENNIB_UPLOAD_STORE_PASSWORD=…
+OPENNIB_UPLOAD_KEY_ALIAS=opennib-upload
+OPENNIB_UPLOAD_KEY_PASSWORD=…
+```
+
+`keytool` writes PKCS12 keystores with a single password, so
+`OPENNIB_UPLOAD_KEY_PASSWORD` must equal `OPENNIB_UPLOAD_STORE_PASSWORD`
+(a different value fails at `:app:packageRelease` with "Given final block
+not properly padded").
+
+Then:
+
+```sh
+npm run prebuild                 # regenerates android/ with signing + icons
+cd android && ./gradlew bundleRelease   # → app/build/outputs/bundle/release/app-release.aab
+./gradlew assembleRelease               # → app/build/outputs/apk/release/app-release.apk (sideload testing)
+```
+
+Release builds are **arm64-v8a only**: the Bare native addons (Whisper,
+Hypercore) ship prebuilds for that ABI alone. `store/` holds the Play
+listing assets and `store/play-listing.md` the listing text and console
+declarations.
+
 ## Repository layout
 
 ```

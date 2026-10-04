@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native"
+import Constants from "expo-constants"
 import {
   SUPPORTED_LANGUAGES,
   WHISPER_MODELS,
@@ -469,13 +470,21 @@ function StatusRow({ title, body, ok, last = false, onOpen }: StatusRowProps) {
 
 // ─── About ───────────────────────────────────────────────────────────
 
+/** "v0.0.2 (2)": marketing version plus the store build number from the native binary. */
+function appVersionLabel(): string {
+  const config = Constants.expoConfig
+  const version = config?.version ?? "dev"
+  const build = Platform.OS === "android" ? config?.android?.versionCode : config?.ios?.buildNumber
+  return build === undefined || build === null ? `v${version}` : `v${version} (${build})`
+}
+
 function AboutTab() {
   return (
     <View style={{ gap: 18 }}>
       <View style={styles.aboutHero}>
         <NibTile size={64} radius={16} glyphSize={32} />
         <Wordmark size={28} />
-        <Text style={styles.aboutVersion}>v0.8 · MIT licensed</Text>
+        <Text style={styles.aboutVersion}>{appVersionLabel()} · MIT licensed</Text>
       </View>
 
       <View style={styles.privacyCard}>

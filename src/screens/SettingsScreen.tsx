@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native"
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native"
 import {
   SUPPORTED_LANGUAGES,
   WHISPER_MODELS,
@@ -14,8 +14,6 @@ import { SettingsShell, type SettingsTab } from "../components/SettingsShell"
 import { Chip, IOSToggle, InkButton, Section, SettingsRow } from "../components/ui"
 import { NibTile, Wordmark } from "../components/Brand"
 import { monoFontFamily, tokens } from "../theme/tokens"
-
-const KEYBOARD_SETTINGS_URL = "App-Prefs:General&path=Keyboard/KEYBOARDS"
 
 interface Props {
   readonly onClose: () => void
@@ -301,17 +299,11 @@ interface KeyboardTabProps {
 function KeyboardTab({ onResetOnboarding }: KeyboardTabProps) {
   const keyboard = useKeyboardStatus()
   const permissions = usePermissions()
+  const android = Platform.OS === "android"
   const micOk = permissions.microphone === "granted"
-  const keyboardOk = keyboard.everActivated === true
+  const keyboardOk = keyboard.ready === true
+  const enabledOk = android ? keyboard.enabled === true : keyboardOk
   const everythingOk = micOk && keyboardOk
-
-  async function openKeyboardSettings(): Promise<void> {
-    try {
-      await Linking.openURL(KEYBOARD_SETTINGS_URL)
-    } catch {
-      await Linking.openSettings()
-    }
-  }
 
   return (
     <View style={{ gap: 18 }}>
@@ -341,30 +333,61 @@ function KeyboardTab({ onResetOnboarding }: KeyboardTabProps) {
       </View>
 
       <Section title="Status">
-        <StatusRow
-          title="Added to Keyboards"
-          body={
-            keyboardOk
-              ? "opennib appears in Settings → General → Keyboard."
-              : "Add opennib in Settings → General → Keyboard, then switch to it once."
-          }
-          ok={keyboardOk}
-          onOpen={() => {
-            void openKeyboardSettings()
-          }}
-        />
-        {/* iOS doesn't expose hasFullAccess to the host app — only to the
-            keyboard extension at runtime. We surface the requirement and let
-            the user jump to Settings; the keyboard itself will error visibly
-            if Full Access is off when the user tries to dictate. */}
-        <StatusRow
-          title="Full Access enabled"
-          body="Required so opennib can insert text into other apps. Toggle on in Settings → opennib."
-          ok={keyboardOk}
-          onOpen={() => {
-            void openKeyboardSettings()
-          }}
-        />
+        {android ? (
+          <>
+            <StatusRow
+              title="Keyboard enabled"
+              body={
+                enabledOk
+                  ? "opennib is on in your phone's keyboard list."
+                  : "Switch opennib on in your phone's on-screen keyboard list."
+              }
+              ok={enabledOk}
+              onOpen={() => {
+                void keyboard.openSettings()
+              }}
+            />
+            <StatusRow
+              title="Default keyboard"
+              body={
+                keyboard.isDefault === true
+                  ? "opennib opens whenever you tap a text field."
+                  : "Pick opennib in the keyboard chooser so it opens in every app."
+              }
+              ok={keyboard.isDefault === true}
+              onOpen={() => {
+                void keyboard.showPicker()
+              }}
+            />
+          </>
+        ) : (
+          <>
+            <StatusRow
+              title="Added to Keyboards"
+              body={
+                keyboardOk
+                  ? "opennib appears in Settings → General → Keyboard."
+                  : "Add opennib in Settings → General → Keyboard, then switch to it once."
+              }
+              ok={keyboardOk}
+              onOpen={() => {
+                void keyboard.openSettings()
+              }}
+            />
+            {/* iOS doesn't expose hasFullAccess to the host app — only to the
+                keyboard extension at runtime. We surface the requirement and let
+                the user jump to Settings; the keyboard itself will error visibly
+                if Full Access is off when the user tries to dictate. */}
+            <StatusRow
+              title="Full Access enabled"
+              body="Required so opennib can insert text into other apps. Toggle on in Settings → opennib."
+              ok={keyboardOk}
+              onOpen={() => {
+                void keyboard.openSettings()
+              }}
+            />
+          </>
+        )}
         <StatusRow
           title="Microphone allowed"
           body={
@@ -393,7 +416,7 @@ function KeyboardTab({ onResetOnboarding }: KeyboardTabProps) {
       </View>
       <View style={styles.help}>
         <Text style={styles.helpText}>
-          If iOS resets a permission after an update, come back here to fix it without poking
+          If your phone resets a permission after an update, come back here to fix it without poking
           through Settings.
         </Text>
       </View>

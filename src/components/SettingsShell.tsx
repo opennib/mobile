@@ -1,6 +1,5 @@
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,6 +8,7 @@ import {
   type ViewStyle,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaView } from "react-native-safe-area-context"
 
 import { tokens } from "../theme/tokens"
 import { Eyebrow } from "./ui"

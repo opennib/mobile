@@ -4,13 +4,14 @@ import {
   AppState,
   Linking,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  Platform,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaView } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard"
 import Svg, { Circle, Path } from "react-native-svg"
 import { SUPPORTED_LANGUAGES } from "@opennib/core"
@@ -36,7 +37,6 @@ import { LiveWave, WaveformFrozen } from "../components/Waveform"
 import { TranscriptCard } from "../components/TranscriptCard"
 import { NoticeCard } from "../components/NoticeCard"
 
-const KEYBOARD_SETTINGS_URL = "App-Prefs:General&path=Keyboard/KEYBOARDS"
 const HEARTBEAT_INTERVAL_MS = 3000
 /** Transient banners (errors, no-speech warning) auto-dismiss after this.
  *  Setup banners (mic permission, keyboard install) stay — they're actionable
@@ -399,7 +399,7 @@ export function HomeScreen({ onOpenSettings, onOpenHistory, onOpenDictionary }: 
   }
 
   const remoteBanner = bannerFor(remoteSource)
-  const setupBanner = setupBannerFor(permissions.microphone, keyboard.everActivated)
+  const setupBanner = setupBannerFor(permissions.microphone, keyboard.ready)
   const languageLabel = settings.ready ? describeLanguage(settings.snapshot.language) : "English"
 
   // Mic panel state mirrors the pipeline:
@@ -490,7 +490,7 @@ export function HomeScreen({ onOpenSettings, onOpenHistory, onOpenDictionary }: 
             body={setupBannerCopy(setupBanner).body}
             actionLabel={setupBannerCopy(setupBanner).action}
             onAction={() => {
-              void runSetupBannerAction(setupBanner)
+              void runSetupBannerAction(setupBanner, keyboard.openSettings)
             }}
           />
         </View>
@@ -759,26 +759,24 @@ function setupBannerCopy(kind: SetupBannerKind): {
     case "keyboard-missing":
       return {
         title: "Finish keyboard setup",
-        body: "Add the opennib keyboard and switch to it once to activate dictation in other apps.",
+        body:
+          Platform.OS === "android"
+            ? "Turn on the opennib keyboard and make it your default to dictate in other apps."
+            : "Add the opennib keyboard and switch to it once to activate dictation in other apps.",
         action: "Open Settings",
       }
   }
 }
 
-async function runSetupBannerAction(kind: SetupBannerKind): Promise<void> {
-  if (kind === "mic-undetermined") {
-    await Linking.openSettings()
+async function runSetupBannerAction(
+  kind: SetupBannerKind,
+  openKeyboardSettings: () => Promise<void>,
+): Promise<void> {
+  if (kind === "keyboard-missing") {
+    await openKeyboardSettings()
     return
   }
-  if (kind === "mic-denied") {
-    await Linking.openSettings()
-    return
-  }
-  try {
-    await Linking.openURL(KEYBOARD_SETTINGS_URL)
-  } catch {
-    await Linking.openSettings()
-  }
+  await Linking.openSettings()
 }
 
 function errorMessage(e: unknown): string {

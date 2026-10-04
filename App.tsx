@@ -1,5 +1,6 @@
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context"
 
 import { useBoot } from "./src/boot/use-boot"
 import { Shell } from "./src/Shell"
@@ -12,30 +13,36 @@ export function App() {
 
   if (boot === null) {
     return (
-      <SafeAreaView style={styles.boot}>
-        <StatusBar style="auto" />
-        {bootError === null ? (
-          <ActivityIndicator color="#3366cc" />
-        ) : (
-          <View style={styles.bootErrorContainer}>
-            <Text style={styles.bootErrorText}>Boot failed: {bootError}</Text>
-          </View>
-        )}
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.boot}>
+          <StatusBar style="auto" />
+          {bootError === null ? (
+            <ActivityIndicator color="#3366cc" />
+          ) : (
+            <View style={styles.bootErrorContainer}>
+              <Text style={styles.bootErrorText}>Boot failed: {bootError}</Text>
+            </View>
+          )}
+        </SafeAreaView>
+      </SafeAreaProvider>
     )
   }
 
+  // SafeAreaProvider supplies real system-bar insets on Android, where the app
+  // draws edge-to-edge and React Native's own SafeAreaView is a plain View.
   return (
-    <SettingsContext.Provider value={boot.settings}>
-      <HistoryContext.Provider value={boot.history}>
-        <DictionaryContext.Provider value={boot.dictionary}>
-          <Shell
-            onboarding={boot.onboarding}
-            initialOnboardingCompleted={boot.onboardingCompleted}
-          />
-        </DictionaryContext.Provider>
-      </HistoryContext.Provider>
-    </SettingsContext.Provider>
+    <SafeAreaProvider>
+      <SettingsContext.Provider value={boot.settings}>
+        <HistoryContext.Provider value={boot.history}>
+          <DictionaryContext.Provider value={boot.dictionary}>
+            <Shell
+              onboarding={boot.onboarding}
+              initialOnboardingCompleted={boot.onboardingCompleted}
+            />
+          </DictionaryContext.Provider>
+        </HistoryContext.Provider>
+      </SettingsContext.Provider>
+    </SafeAreaProvider>
   )
 }
 

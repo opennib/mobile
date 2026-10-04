@@ -8,7 +8,8 @@ import com.facebook.react.uimanager.ViewManager
 class OpennibKeyboardPackage : ReactPackage {
   override fun createNativeModules(
     reactContext: ReactApplicationContext,
-  ): List<NativeModule> = listOf(OpennibKeyboardBridge(reactContext))
+  ): List<NativeModule> =
+    listOf(OpennibKeyboardBridge(reactContext), OpennibKeyboardSetupModule(reactContext))
 
   override fun createViewManagers(
     reactContext: ReactApplicationContext,

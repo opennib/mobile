@@ -26,6 +26,7 @@ const KOTLIN_FILES = [
   "OpennibKeyboardBridge.kt",
   "OpennibKeyboardController.kt",
   "OpennibKeyboardPackage.kt",
+  "OpennibKeyboardSetupModule.kt",
   "OpennibWaveView.kt",
 ]
 

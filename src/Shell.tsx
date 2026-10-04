@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react"
-import { SafeAreaView, StyleSheet } from "react-native"
+import { StyleSheet } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaView } from "react-native-safe-area-context"
 
 import type { OnboardingState } from "./services/onboarding-state"
 import { useCleanerConfig } from "./hooks/use-cleaner-config"

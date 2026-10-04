@@ -3,7 +3,7 @@
     "name": "opennib",
     "slug": "opennib",
     "scheme": "opennib",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -26,7 +26,7 @@
       "package": "com.opennib.mobile",
       "edgeToEdgeEnabled": true,
       "permissions": ["RECORD_AUDIO"],
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#17181c"

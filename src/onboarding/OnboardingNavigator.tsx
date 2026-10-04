@@ -2,14 +2,15 @@ import { useCallback, useEffect, useState } from "react"
 import {
   AppState,
   Linking,
+  Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaView } from "react-native-safe-area-context"
 import Svg, { Path } from "react-native-svg"
 
 import { useKeyboardStatus } from "../hooks/use-keyboard-status"
@@ -19,8 +20,6 @@ import { MicButton } from "../components/MicButton"
 import { NoticeCard } from "../components/NoticeCard"
 import { Eyebrow, InkButton } from "../components/ui"
 import { monoFontFamily, tokens } from "../theme/tokens"
-
-const KEYBOARD_SETTINGS_URL = "App-Prefs:General&path=Keyboard/KEYBOARDS"
 
 type StepKey = "welcome" | "mic-permission" | "keyboard-install" | "done"
 const STEPS: readonly StepKey[] = ["welcome", "mic-permission", "keyboard-install", "done"]
@@ -205,9 +204,21 @@ function MicStep({ onContinue, onBack }: StepProps) {
 
 // ─── M-O-3 · Keyboard install ───────────────────────────────────────
 
+/**
+ * iOS: one stage — add opennib under Keyboards and switch to it once.
+ * Android: two stages — enable opennib in the system keyboard list, then pick
+ * it in the keyboard chooser so it becomes the default.
+ */
 function KeyboardStep({ onContinue, onBack }: StepProps) {
   const keyboard = useKeyboardStatus()
-  const waiting = keyboard.everActivated === false
+  const [busy, setBusy] = useState(false)
+  const android = Platform.OS === "android"
+  const stage: "enable" | "switch" | "ios" = !android
+    ? "ios"
+    : keyboard.enabled === true
+      ? "switch"
+      : "enable"
+  const waiting = !android && keyboard.ready === false
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -217,29 +228,48 @@ function KeyboardStep({ onContinue, onBack }: StepProps) {
   }, [keyboard])
 
   useEffect(() => {
-    if (keyboard.everActivated === true) onContinue()
-  }, [keyboard.everActivated, onContinue])
+    if (keyboard.ready === true) onContinue()
+  }, [keyboard.ready, onContinue])
 
-  async function openKeyboardSettings(): Promise<void> {
+  async function handlePrimary(): Promise<void> {
+    setBusy(true)
     try {
-      await Linking.openURL(KEYBOARD_SETTINGS_URL)
-    } catch {
-      await Linking.openSettings()
+      if (stage === "switch") await keyboard.showPicker()
+      else await keyboard.openSettings()
+    } finally {
+      setBusy(false)
     }
   }
+
+  const copy = {
+    ios: {
+      eyebrow: "Step · Keyboard",
+      title: waiting ? "Almost there." : "Set up the opennib keyboard.",
+      body: waiting
+        ? "We can't see opennib in your keyboards yet. Add it, then switch to it once in any text field to wake it."
+        : "Add opennib in Settings and turn on Full Access — it's required to run the model on this phone.",
+      button: "Open Settings",
+    },
+    enable: {
+      eyebrow: "Step 1 of 2 · Keyboard",
+      title: "Turn on the opennib keyboard.",
+      body: "Android lists keyboards in system settings. Switch opennib on there and come back. Android shows the same warning for every third-party keyboard; opennib never sends what you type anywhere.",
+      button: "Open keyboard settings",
+    },
+    switch: {
+      eyebrow: "Step 2 of 2 · Keyboard",
+      title: "Make opennib your keyboard.",
+      body: "Pick opennib in the chooser. You can switch back any time from the keyboard icon at the bottom of the screen.",
+      button: busy ? "Waiting…" : "Choose keyboard",
+    },
+  }[stage]
 
   return (
     <View style={styles.stepInner}>
       <View style={styles.stepBody}>
-        <Eyebrow>Step · Keyboard</Eyebrow>
-        <Text style={styles.title}>
-          {waiting ? "Almost there." : "Set up the opennib keyboard."}
-        </Text>
-        <Text style={styles.body}>
-          {waiting
-            ? "We can't see opennib in your keyboards yet. Add it, then switch to it once in any text field to wake it."
-            : "Add opennib in Settings and turn on Full Access — it's required to run the model on this phone."}
-        </Text>
+        <Eyebrow>{copy.eyebrow}</Eyebrow>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.body}>{copy.body}</Text>
       </View>
 
       <View style={styles.kbPreviewWrap}>
@@ -249,19 +279,24 @@ function KeyboardStep({ onContinue, onBack }: StepProps) {
             title="Not detected yet"
             body="Add opennib AND switch to it once for it to wake."
           />
-        ) : (
+        ) : stage === "ios" ? (
           <IOSKbPreview />
+        ) : stage === "enable" ? (
+          <AndroidEnablePreview />
+        ) : (
+          <AndroidPickerPreview />
         )}
       </View>
 
       <View style={styles.actions}>
         <InkButton
           variant="primary"
+          disabled={busy}
           onPress={() => {
-            void openKeyboardSettings()
+            void handlePrimary()
           }}
         >
-          Open Settings
+          {copy.button}
         </InkButton>
         <InkButton variant="ghost" size="md" onPress={onContinue}>
           Skip for now
@@ -272,24 +307,24 @@ function KeyboardStep({ onContinue, onBack }: StepProps) {
   )
 }
 
+function KeyboardGlyph() {
+  return (
+    <Svg width={15} height={15} viewBox="0 0 16 16" fill="none">
+      <Path
+        d="M1.5 4h13v8h-13zM4 6.5h.01M6 6.5h.01M8 6.5h.01M10 6.5h.01M12 6.5h.01M4.5 9.5h7"
+        stroke={tokens.ink2}
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
+    </Svg>
+  )
+}
+
 /** Inline "Keyboards" preview card — matches the IOSKbPreview in onboarding.jsx. */
 function IOSKbPreview() {
   return (
     <View style={styles.kbCard}>
-      <PreviewRow
-        icon={
-          <Svg width={15} height={15} viewBox="0 0 16 16" fill="none">
-            <Path
-              d="M1.5 4h13v8h-13zM4 6.5h.01M6 6.5h.01M8 6.5h.01M10 6.5h.01M12 6.5h.01M4.5 9.5h7"
-              stroke={tokens.ink2}
-              strokeWidth={1.2}
-              strokeLinecap="round"
-            />
-          </Svg>
-        }
-        label="Keyboards"
-        chevron
-      />
+      <PreviewRow icon={<KeyboardGlyph />} label="Keyboards" chevron />
       <PreviewRow icon={<NibGlyph size={14} color={tokens.ink} />} label="opennib" toggleOn />
       <PreviewRow
         icon={
@@ -311,16 +346,42 @@ function IOSKbPreview() {
   )
 }
 
+/** Android system keyboard list with opennib switched on. */
+function AndroidEnablePreview() {
+  return (
+    <View style={styles.kbCard}>
+      <PreviewRow icon={<KeyboardGlyph />} label="On-screen keyboards" chevron />
+      <PreviewRow icon={<NibGlyph size={14} color={tokens.ink} />} label="opennib" toggleOn last />
+      <Text style={styles.kbHint}>
+        Settings ▸ Keyboard ▸ On-screen keyboards (name varies by phone)
+      </Text>
+    </View>
+  )
+}
+
+/** Android keyboard chooser with opennib selected. */
+function AndroidPickerPreview() {
+  return (
+    <View style={styles.kbCard}>
+      <PreviewRow icon={<KeyboardGlyph />} label="Choose keyboard" />
+      <PreviewRow icon={<NibGlyph size={14} color={tokens.ink} />} label="opennib" selected last />
+      <Text style={styles.kbHint}>Tap “Choose keyboard” below, then pick opennib</Text>
+    </View>
+  )
+}
+
 function PreviewRow({
   icon,
   label,
   toggleOn,
+  selected,
   chevron,
   last,
 }: {
   readonly icon: React.ReactNode
   readonly label: string
   readonly toggleOn?: boolean
+  readonly selected?: boolean
   readonly chevron?: boolean
   readonly last?: boolean
 }) {
@@ -332,6 +393,11 @@ function PreviewRow({
       {toggleOn === true && (
         <View style={styles.previewToggle}>
           <View style={styles.previewToggleKnob} />
+        </View>
+      )}
+      {selected === true && (
+        <View style={styles.previewRadio}>
+          <View style={styles.previewRadioDot} />
         </View>
       )}
       {chevron === true && <Text style={styles.previewChevron}>›</Text>}
@@ -358,7 +424,9 @@ function DoneStep({ onComplete }: { readonly onComplete: () => void }) {
         </View>
         <Text style={styles.doneTitle}>Nicely done.</Text>
         <Text style={styles.doneBody}>
-          You can dictate anywhere — tap the 🌐 globe key in any app, then hold the mic.
+          {Platform.OS === "android"
+            ? "You can dictate anywhere — open any text field, then hold the mic on the opennib keyboard."
+            : "You can dictate anywhere — tap the 🌐 globe key in any app, then hold the mic."}
         </Text>
       </View>
       <View style={styles.actions}>
@@ -509,6 +577,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: tokens.ink,
     letterSpacing: -0.2,
+  },
+  previewRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: tokens.ink,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewRadioDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: tokens.ink,
   },
   previewToggle: {
     width: 38,
